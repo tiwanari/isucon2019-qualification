@@ -64,10 +64,11 @@ const (
 )
 
 var (
-	templates  *template.Template
-	dbx        *sqlx.DB
-	store      sessions.Store
-	categories map[int]Category
+	templates        *template.Template
+	dbx              *sqlx.DB
+	store            sessions.Store
+	categories       map[int]Category
+	categorySnapshot []Category
 )
 
 type Config struct {
@@ -496,8 +497,7 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// cache categories
-	var cates []Category
-	dbError := dbx.Select(&cates, "SELECT * FROM `categories`")
+	dbError := dbx.Select(&categorySnapshot, "SELECT * FROM `categories`")
 	if dbError != nil {
 		log.Print(dbError)
 		outputErrorMsg(w, http.StatusInternalServerError, "db error")
@@ -505,7 +505,7 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	}
 
 	categories = make(map[int]Category)
-	for _, category := range cates {
+	for _, category := range categorySnapshot {
 		if category.ParentID > 0 {
 			category.ParentCategoryName = categories[category.ParentID].CategoryName
 		}
@@ -2173,15 +2173,7 @@ func getSettings(w http.ResponseWriter, r *http.Request) {
 
 	ress.PaymentServiceURL = getPaymentServiceURL()
 
-	categories := []Category{}
-
-	err := dbx.Select(&categories, "SELECT * FROM `categories`")
-	if err != nil {
-		log.Print(err)
-		outputErrorMsg(w, http.StatusInternalServerError, "db error")
-		return
-	}
-	ress.Categories = categories
+	ress.Categories = categorySnapshot
 
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
 	json.NewEncoder(w).Encode(ress)
