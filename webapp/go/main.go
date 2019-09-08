@@ -571,9 +571,9 @@ FROM items t1
 JOIN users t2
 ON t1.seller_id = t2.id
 WHERE status IN (?,?)
-AND (t1.created_at < ?  OR (t1.created_at <= ? AND t1.id < ?)) 
+AND (t1.created_at < ? OR (t1.created_at <= ? AND t1.id < ?))
 ORDER BY t1.created_at DESC, t1.id DESC LIMIT ?
-    `
+`
 		err := dbx.Select(&itemSimples,
 			query,
 			ItemStatusOnSale,
@@ -609,7 +609,7 @@ JOIN users t2
 ON t1.seller_id = t2.id
 WHERE status IN (?,?)
 ORDER BY t1.created_at DESC, t1.id DESC LIMIT ?
-    `
+`
 		err := dbx.Select(&itemSimples,
 			query,
 			ItemStatusOnSale,
@@ -808,11 +808,32 @@ func getUserItems(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	items := []Item{}
+	itemSimples := []ItemSimple{}
 	if itemID > 0 && createdAt > 0 {
 		// paging
+		query := `
+SELECT
+t1.id as id
+, t1.seller_id as seller_id
+, t2.id as "seller.id"
+, t2.account_name as "seller.account_name"
+, t2.num_sell_items as "seller.num_sell_items"
+, t1.status as status
+, t1.name as name
+, t1.price as price
+, t1.category_id as category_id
+, UNIX_TIMESTAMP(t1.created_at) as created_at
+, CONCAT('/upload/', t1.image_name) as image_url
+FROM items t1
+JOIN users t2
+ON t1.seller_id = t2.id
+WHERE seller_id = ?
+AND status IN (?,?,?)
+AND (t1.created_at < ? OR (t1.created_at <= ? AND t1.id < ?))
+ORDER BY t1.created_at DESC, t1.id DESC LIMIT ?
+`
 		err := dbx.Select(&items,
-			"SELECT * FROM `items` WHERE `seller_id` = ? AND `status` IN (?,?,?) AND (`created_at` < ?  OR (`created_at` <= ? AND `id` < ?)) ORDER BY `created_at` DESC, `id` DESC LIMIT ?",
+			query,
 			userSimple.ID,
 			ItemStatusOnSale,
 			ItemStatusTrading,
@@ -829,8 +850,28 @@ func getUserItems(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		// 1st page
+		query := `
+SELECT
+t1.id as id
+, t1.seller_id as seller_id
+, t2.id as "seller.id"
+, t2.account_name as "seller.account_name"
+, t2.num_sell_items as "seller.num_sell_items"
+, t1.status as status
+, t1.name as name
+, t1.price as price
+, t1.category_id as category_id
+, UNIX_TIMESTAMP(t1.created_at) as created_at
+, CONCAT('/upload/', t1.image_name) as image_url
+FROM items t1
+JOIN users t2
+ON t1.seller_id = t2.id
+WHERE seller_id = ?
+AND status IN (?,?,?)
+ORDER BY t1.created_at DESC, t1.id DESC LIMIT ?
+`
 		err := dbx.Select(&items,
-			"SELECT * FROM `items` WHERE `seller_id` = ? AND `status` IN (?,?,?) ORDER BY `created_at` DESC, `id` DESC LIMIT ?",
+			query,
 			userSimple.ID,
 			ItemStatusOnSale,
 			ItemStatusTrading,
@@ -844,25 +885,13 @@ func getUserItems(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	itemSimples := []ItemSimple{}
-	for _, item := range items {
+	for idx, item := range itemSimples {
 		category, err := getCategoryByID(dbx, item.CategoryID)
 		if err != nil {
 			outputErrorMsg(w, http.StatusNotFound, "category not found")
 			return
 		}
-		itemSimples = append(itemSimples, ItemSimple{
-			ID:         item.ID,
-			SellerID:   item.SellerID,
-			Seller:     &userSimple,
-			Status:     item.Status,
-			Name:       item.Name,
-			Price:      item.Price,
-			ImageURL:   getImageURL(item.ImageName),
-			CategoryID: item.CategoryID,
-			Category:   &category,
-			CreatedAt:  item.CreatedAt.Unix(),
-		})
+		itemSimples[idx].Category = &category
 	}
 
 	hasNext := false
