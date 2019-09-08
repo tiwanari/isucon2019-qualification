@@ -661,9 +661,6 @@ func getNewCategoryItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// use parent ID -> child IDs map
-	categoryIDs := subCategoryIDs[rootCategory.ID]
-
 	query := r.URL.Query()
 	itemIDStr := query.Get("item_id")
 	var itemID int64
@@ -689,11 +686,34 @@ func getNewCategoryItems(w http.ResponseWriter, r *http.Request) {
 	var inArgs []interface{}
 	if itemID > 0 && createdAt > 0 {
 		// paging
+		query := `
+SELECT
+t1.id as id
+, t1.seller_id as seller_id
+, t2.id as "seller.id"
+, t2.account_name as "seller.account_name"
+, t2.num_sell_items as "seller.num_sell_items"
+, t1.status as status
+, t1.name as name
+, t1.price as price
+, t1.category_id as category_id
+, UNIX_TIMESTAMP(t1.created_at) as created_at
+, CONCAT('/upload/', t1.image_name) as image_url
+FROM items t1
+JOIN users t2
+ON t1.seller_id = t2.id
+JOIN categories t3
+ON t1.category_id = t3.id
+WHERE status IN (?,?)
+AND t3.parent_id = ?
+AND (t1.created_at < ?  OR (t1.created_at <= ? AND t1.id < ?)) 
+ORDER BY t1.created_at DESC, t1.id DESC LIMIT ?
+    `
 		inQuery, inArgs, err = sqlx.In(
-			"SELECT * FROM `items` WHERE `status` IN (?,?) AND category_id IN (?) AND (`created_at` < ?  OR (`created_at` <= ? AND `id` < ?)) ORDER BY `created_at` DESC, `id` DESC LIMIT ?",
+			query,
 			ItemStatusOnSale,
 			ItemStatusSoldOut,
-			categoryIDs,
+			rootCategoryID,
 			time.Unix(createdAt, 0),
 			time.Unix(createdAt, 0),
 			itemID,
@@ -706,11 +726,33 @@ func getNewCategoryItems(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		// 1st page
+		query := `
+SELECT
+t1.id as id
+, t1.seller_id as seller_id
+, t2.id as "seller.id"
+, t2.account_name as "seller.account_name"
+, t2.num_sell_items as "seller.num_sell_items"
+, t1.status as status
+, t1.name as name
+, t1.price as price
+, t1.category_id as category_id
+, UNIX_TIMESTAMP(t1.created_at) as created_at
+, CONCAT('/upload/', t1.image_name) as image_url
+FROM items t1
+JOIN users t2
+ON t1.seller_id = t2.id
+JOIN categories t3
+ON t1.category_id = t3.id
+WHERE status IN (?,?)
+AND t3.parent_id = ?
+ORDER BY t1.created_at DESC, t1.id DESC LIMIT ?
+    `
 		inQuery, inArgs, err = sqlx.In(
-			"SELECT * FROM `items` WHERE `status` IN (?,?) AND category_id IN (?) ORDER BY created_at DESC, id DESC LIMIT ?",
+			query,
 			ItemStatusOnSale,
 			ItemStatusSoldOut,
-			categoryIDs,
+			rootCategoryID,
 			ItemsPerPage+1,
 		)
 		if err != nil {
@@ -720,8 +762,8 @@ func getNewCategoryItems(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	items := []Item{}
-	err = dbx.Select(&items, inQuery, inArgs...)
+	itemSimples := []ItemSimple{}
+	err = dbx.Select(&itemSimples, inQuery, inArgs...)
 
 	if err != nil {
 		log.Print(err)
@@ -729,30 +771,13 @@ func getNewCategoryItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	itemSimples := []ItemSimple{}
-	for _, item := range items {
-		seller, err := getUserSimpleByID(dbx, item.SellerID)
-		if err != nil {
-			outputErrorMsg(w, http.StatusNotFound, "seller not found")
-			return
-		}
+	for idx, item := range itemSimples {
 		category, err := getCategoryByID(dbx, item.CategoryID)
 		if err != nil {
 			outputErrorMsg(w, http.StatusNotFound, "category not found")
 			return
 		}
-		itemSimples = append(itemSimples, ItemSimple{
-			ID:         item.ID,
-			SellerID:   item.SellerID,
-			Seller:     &seller,
-			Status:     item.Status,
-			Name:       item.Name,
-			Price:      item.Price,
-			ImageURL:   getImageURL(item.ImageName),
-			CategoryID: item.CategoryID,
-			Category:   &category,
-			CreatedAt:  item.CreatedAt.Unix(),
-		})
+		itemSimples[idx].Category = &category
 	}
 
 	hasNext := false
