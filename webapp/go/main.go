@@ -538,7 +538,7 @@ func getNewItems(w http.ResponseWriter, r *http.Request) {
 
 	itemSimples := []ItemSimple{}
 	if itemID > 0 && createdAt > 0 {
-		log.Printf("paging %d %s", itemID, createdAt)
+		log.Printf("paging %d %d", itemID, createdAt)
 		// paging
 		query := `
 SELECT
@@ -574,7 +574,7 @@ ORDER BY t1.created_at DESC, t1.id DESC LIMIT ?
 			return
 		}
 	} else {
-		log.Printf("1st page %d %s", itemID, createdAt)
+		log.Printf("1st page %d %d", itemID, createdAt)
 		// 1st page
 		query := `
 SELECT
