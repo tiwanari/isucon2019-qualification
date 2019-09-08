@@ -750,7 +750,7 @@ ORDER BY t1.created_at DESC, t1.id DESC LIMIT ?
 			query,
 			ItemStatusOnSale,
 			ItemStatusSoldOut,
-			rootCategoryID,
+			categoryIDs,
 			ItemsPerPage+1,
 		)
 		if err != nil {
