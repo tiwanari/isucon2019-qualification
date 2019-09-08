@@ -69,6 +69,7 @@ var (
 	store            sessions.Store
 	categories       map[int]Category
 	categorySnapshot []Category
+	subCategoryIDs   map[int][]int
 )
 
 type Config struct {
@@ -505,10 +506,13 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	}
 
 	categories = make(map[int]Category)
+	subCategoryIDs = make(map[int][]int)
 	for _, category := range categorySnapshot {
 		if category.ParentID > 0 {
 			category.ParentCategoryName = categories[category.ParentID].CategoryName
+			subCategoryIDs[category.ParentID] = append(subCategoryIDs[category.ParentID], category.ID)
 		}
+
 		categories[category.ID] = category
 	}
 
@@ -633,13 +637,8 @@ func getNewCategoryItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var categoryIDs []int
-	err = dbx.Select(&categoryIDs, "SELECT id FROM `categories` WHERE parent_id=?", rootCategory.ID)
-	if err != nil {
-		log.Print(err)
-		outputErrorMsg(w, http.StatusInternalServerError, "db error")
-		return
-	}
+	// use parent ID -> child IDs map
+	categoryIDs := subCategoryIDs[rootCategory.ID]
 
 	query := r.URL.Query()
 	itemIDStr := query.Get("item_id")
