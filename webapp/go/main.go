@@ -60,7 +60,7 @@ const (
 	BcryptCost = 10
 
 	logFolder = "./logs/"
-	logFile = logFolder + "stdout.log"
+	logFile   = logFolder + "stdout.log"
 )
 
 var (
@@ -105,16 +105,16 @@ type Item struct {
 }
 
 type ItemSimple struct {
-	ID         int64       `json:"id"`
-	SellerID   int64       `json:"seller_id"`
-	Seller     *UserSimple `json:"seller"`
-	Status     string      `json:"status"`
-	Name       string      `json:"name"`
-	Price      int         `json:"price"`
-	ImageURL   string      `json:"image_url"`
-	CategoryID int         `json:"category_id"`
-	Category   *Category   `json:"category"`
-	CreatedAt  int64       `json:"created_at"`
+	ID         int64       `json:"id" db:"id"`
+	SellerID   int64       `json:"seller_id" db:"seller_id"`
+	Seller     *UserSimple `json:"seller" db:"seller"`
+	Status     string      `json:"status" db:"status"`
+	Name       string      `json:"name" db:"name"`
+	Price      int         `json:"price" db:"price"`
+	ImageURL   string      `json:"image_url" db:"image_url"`
+	CategoryID int         `json:"category_id" db:"category_id"`
+	Category   *Category   `json:"category" db:"category"`
+	CreatedAt  int64       `json:"created_at" db:"created_at"`
 }
 
 type ItemDetail struct {
@@ -536,11 +536,30 @@ func getNewItems(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	items := []Item{}
+	// items := []Item{}
+	itemSimples := []ItemSimple{}
 	if itemID > 0 && createdAt > 0 {
 		// paging
-		err := dbx.Select(&items,
-			"SELECT * FROM `items` WHERE `status` IN (?,?) AND (`created_at` < ?  OR (`created_at` <= ? AND `id` < ?)) ORDER BY `created_at` DESC, `id` DESC LIMIT ?",
+		query := `
+SELECT
+t1.id as id
+, t1.seller_id as seller_id
+, t2.id as "seller.id"
+, t2.accountName as "seller.account_name"
+, t2.num_sell_items as "seller.num_sell_items"
+, t1.status as status
+, t1.name as name
+, t1.price as price
+, t1.category_id as category_id
+FROM items t1
+JOIN users t2
+ON t1.seller_id = t2.id
+WHERE status IN (?,?)
+AND (t1.created_at < ?  OR (t1.created_at <= ? AND t1.id < ?)) 
+ORDER BY t1.created_at DESC, t1.id DESC LIMIT ?
+    `
+		err := dbx.Select(&itemSimples,
+			query,
 			ItemStatusOnSale,
 			ItemStatusSoldOut,
 			time.Unix(createdAt, 0),
@@ -555,8 +574,25 @@ func getNewItems(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		// 1st page
-		err := dbx.Select(&items,
-			"SELECT * FROM `items` WHERE `status` IN (?,?) ORDER BY `created_at` DESC, `id` DESC LIMIT ?",
+		query := `
+SELECT
+t1.id as id
+, t1.seller_id as seller_id
+, t2.id as "seller.id"
+, t2.accountName as "seller.account_name"
+, t2.num_sell_items as "seller.num_sell_items"
+, t1.status as status
+, t1.name as name
+, t1.price as price
+, t1.category_id as category_id
+FROM items t1
+JOIN users t2
+ON t1.seller_id = t2.id
+WHERE status IN (?,?)
+ORDER BY t1.created_at DESC, t1.id DESC LIMIT ?
+    `
+		err := dbx.Select(&itemSimples,
+			query,
 			ItemStatusOnSale,
 			ItemStatusSoldOut,
 			ItemsPerPage+1,
@@ -568,30 +604,14 @@ func getNewItems(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	itemSimples := []ItemSimple{}
-	for _, item := range items {
-		seller, err := getUserSimpleByID(dbx, item.SellerID)
-		if err != nil {
-			outputErrorMsg(w, http.StatusNotFound, "seller not found")
-			return
-		}
+	// itemSimples := []ItemSimple{}
+	for _, item := range itemSimples {
 		category, err := getCategoryByID(dbx, item.CategoryID)
 		if err != nil {
 			outputErrorMsg(w, http.StatusNotFound, "category not found")
 			return
 		}
-		itemSimples = append(itemSimples, ItemSimple{
-			ID:         item.ID,
-			SellerID:   item.SellerID,
-			Seller:     &seller,
-			Status:     item.Status,
-			Name:       item.Name,
-			Price:      item.Price,
-			ImageURL:   getImageURL(item.ImageName),
-			CategoryID: item.CategoryID,
-			Category:   &category,
-			CreatedAt:  item.CreatedAt.Unix(),
-		})
+		item.Category = &category
 	}
 
 	hasNext := false
