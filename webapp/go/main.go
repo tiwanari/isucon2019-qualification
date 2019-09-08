@@ -58,6 +58,9 @@ const (
 	TransactionsPerPage = 10
 
 	BcryptCost = 10
+
+	logFolder = "./logs/"
+	logFile = logFolder + "stdout.log"
 )
 
 var (
@@ -280,6 +283,10 @@ func init() {
 }
 
 func main() {
+	os.MkdirAll(logFolder, 0775)
+	file, _ := os.Create(logFile)
+	log.SetOutput(file)
+
 	go func() {
 		log.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
