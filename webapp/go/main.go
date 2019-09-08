@@ -60,13 +60,14 @@ const (
 	BcryptCost = 10
 
 	logFolder = "./logs/"
-	logFile = logFolder + "stdout.log"
+	logFile   = logFolder + "stdout.log"
 )
 
 var (
-	templates *template.Template
-	dbx       *sqlx.DB
-	store     sessions.Store
+	templates  *template.Template
+	dbx        *sqlx.DB
+	store      sessions.Store
+	categories map[int]Category
 )
 
 type Config struct {
@@ -419,15 +420,7 @@ func getUserSimpleByID(q sqlx.Queryer, userID int64) (userSimple UserSimple, err
 }
 
 func getCategoryByID(q sqlx.Queryer, categoryID int) (category Category, err error) {
-	err = sqlx.Get(q, &category, "SELECT * FROM `categories` WHERE `id` = ?", categoryID)
-	if category.ParentID != 0 {
-		parentCategory, err := getCategoryByID(q, category.ParentID)
-		if err != nil {
-			return category, err
-		}
-		category.ParentCategoryName = parentCategory.CategoryName
-	}
-	return category, err
+	return categories[categoryID], nil
 }
 
 func getConfigByName(name string) (string, error) {
@@ -500,6 +493,23 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 		log.Print(err)
 		outputErrorMsg(w, http.StatusInternalServerError, "db error")
 		return
+	}
+
+	// cache categories
+	var cates []Category
+	dbError := dbx.Select(&cates, "SELECT * FROM `categories`")
+	if dbError != nil {
+		log.Print(dbError)
+		outputErrorMsg(w, http.StatusInternalServerError, "db error")
+		return
+	}
+
+	categories = make(map[int]Category)
+	for _, category := range cates {
+		if category.ParentID > 0 {
+			category.ParentCategoryName = categories[category.ParentID].CategoryName
+		}
+		categories[category.ID] = category
 	}
 
 	res := resInitialize{
