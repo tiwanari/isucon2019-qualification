@@ -550,6 +550,7 @@ t1.id as id
 , t1.name as name
 , t1.price as price
 , t1.category_id as category_id
+, '/upload/' || t1.image_name as image_url
 FROM items t1
 JOIN users t2
 ON t1.seller_id = t2.id
@@ -584,6 +585,7 @@ t1.id as id
 , t1.name as name
 , t1.price as price
 , t1.category_id as category_id
+, '/upload/' || t1.image_name as image_url
 FROM items t1
 JOIN users t2
 ON t1.seller_id = t2.id
