@@ -707,7 +707,7 @@ ON t1.category_id = t3.id
 WHERE status IN (?,?)
 AND t3.parent_id = ?
 AND (t1.created_at < ?  OR (t1.created_at <= ? AND t1.id < ?)) 
-ORDER BY t1.created_at DESC, t1.id DESC LIMIT 10
+ORDER BY t1.created_at DESC, t1.id DESC LIMIT ?
     `
 		inQuery, inArgs, err = sqlx.In(
 			query,
@@ -746,7 +746,7 @@ JOIN categories t3
 ON t1.category_id = t3.id
 WHERE status IN (?,?)
 AND t3.parent_id = ?
-ORDER BY t1.created_at DESC, t1.id DESC LIMIT 10
+ORDER BY t1.created_at DESC, t1.id DESC LIMIT ?
     `
 		inQuery, inArgs, err = sqlx.In(
 			query,
