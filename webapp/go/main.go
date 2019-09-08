@@ -661,6 +661,8 @@ func getNewCategoryItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+  categoryIDs := subCategoryIDs[rootCategoryID]
+
 	query := r.URL.Query()
 	itemIDStr := query.Get("item_id")
 	var itemID int64
@@ -702,10 +704,8 @@ t1.id as id
 FROM items t1
 JOIN users t2
 ON t1.seller_id = t2.id
-JOIN categories t3
-ON t1.category_id = t3.id
 WHERE status IN (?,?)
-AND t3.parent_id = ?
+AND t1.category_id in (?)
 AND (t1.created_at < ?  OR (t1.created_at <= ? AND t1.id < ?)) 
 ORDER BY t1.created_at DESC, t1.id DESC LIMIT ?
     `
@@ -713,7 +713,7 @@ ORDER BY t1.created_at DESC, t1.id DESC LIMIT ?
 			query,
 			ItemStatusOnSale,
 			ItemStatusSoldOut,
-			rootCategoryID,
+			categoryIDs,
 			time.Unix(createdAt, 0),
 			time.Unix(createdAt, 0),
 			itemID,
@@ -742,10 +742,8 @@ t1.id as id
 FROM items t1
 JOIN users t2
 ON t1.seller_id = t2.id
-JOIN categories t3
-ON t1.category_id = t3.id
 WHERE status IN (?,?)
-AND t3.parent_id = ?
+AND t1.category_id in (?)
 ORDER BY t1.created_at DESC, t1.id DESC LIMIT ?
     `
 		inQuery, inArgs, err = sqlx.In(
