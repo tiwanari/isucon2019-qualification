@@ -60,13 +60,16 @@ const (
 	BcryptCost = 10
 
 	logFolder = "./logs/"
-	logFile = logFolder + "stdout.log"
+	logFile   = logFolder + "stdout.log"
 )
 
 var (
-	templates *template.Template
-	dbx       *sqlx.DB
-	store     sessions.Store
+	templates        *template.Template
+	dbx              *sqlx.DB
+	store            sessions.Store
+	categories       map[int]Category
+	categorySnapshot []Category
+	subCategoryIDs   map[int][]int
 )
 
 type Config struct {
@@ -419,15 +422,7 @@ func getUserSimpleByID(q sqlx.Queryer, userID int64) (userSimple UserSimple, err
 }
 
 func getCategoryByID(q sqlx.Queryer, categoryID int) (category Category, err error) {
-	err = sqlx.Get(q, &category, "SELECT * FROM `categories` WHERE `id` = ?", categoryID)
-	if category.ParentID != 0 {
-		parentCategory, err := getCategoryByID(q, category.ParentID)
-		if err != nil {
-			return category, err
-		}
-		category.ParentCategoryName = parentCategory.CategoryName
-	}
-	return category, err
+	return categories[categoryID], nil
 }
 
 func getConfigByName(name string) (string, error) {
@@ -500,6 +495,25 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 		log.Print(err)
 		outputErrorMsg(w, http.StatusInternalServerError, "db error")
 		return
+	}
+
+	// cache categories
+	dbError := dbx.Select(&categorySnapshot, "SELECT * FROM `categories`")
+	if dbError != nil {
+		log.Print(dbError)
+		outputErrorMsg(w, http.StatusInternalServerError, "db error")
+		return
+	}
+
+	categories = make(map[int]Category)
+	subCategoryIDs = make(map[int][]int)
+	for _, category := range categorySnapshot {
+		if category.ParentID > 0 {
+			category.ParentCategoryName = categories[category.ParentID].CategoryName
+			subCategoryIDs[category.ParentID] = append(subCategoryIDs[category.ParentID], category.ID)
+		}
+
+		categories[category.ID] = category
 	}
 
 	res := resInitialize{
@@ -623,13 +637,8 @@ func getNewCategoryItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var categoryIDs []int
-	err = dbx.Select(&categoryIDs, "SELECT id FROM `categories` WHERE parent_id=?", rootCategory.ID)
-	if err != nil {
-		log.Print(err)
-		outputErrorMsg(w, http.StatusInternalServerError, "db error")
-		return
-	}
+	// use parent ID -> child IDs map
+	categoryIDs := subCategoryIDs[rootCategory.ID]
 
 	query := r.URL.Query()
 	itemIDStr := query.Get("item_id")
@@ -2163,15 +2172,7 @@ func getSettings(w http.ResponseWriter, r *http.Request) {
 
 	ress.PaymentServiceURL = getPaymentServiceURL()
 
-	categories := []Category{}
-
-	err := dbx.Select(&categories, "SELECT * FROM `categories`")
-	if err != nil {
-		log.Print(err)
-		outputErrorMsg(w, http.StatusInternalServerError, "db error")
-		return
-	}
-	ress.Categories = categories
+	ress.Categories = categorySnapshot
 
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
 	json.NewEncoder(w).Encode(ress)
