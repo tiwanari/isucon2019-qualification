@@ -832,7 +832,7 @@ AND status IN (?,?,?)
 AND (t1.created_at < ? OR (t1.created_at <= ? AND t1.id < ?))
 ORDER BY t1.created_at DESC, t1.id DESC LIMIT ?
 `
-		err := dbx.Select(&items,
+		err := dbx.Select(&itemSimples,
 			query,
 			userSimple.ID,
 			ItemStatusOnSale,
@@ -870,7 +870,7 @@ WHERE seller_id = ?
 AND status IN (?,?,?)
 ORDER BY t1.created_at DESC, t1.id DESC LIMIT ?
 `
-		err := dbx.Select(&items,
+		err := dbx.Select(&itemSimples,
 			query,
 			userSimple.ID,
 			ItemStatusOnSale,
