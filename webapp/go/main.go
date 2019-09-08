@@ -60,7 +60,7 @@ const (
 	BcryptCost = 10
 
 	logFolder = "./logs/"
-	logFile   = logFolder + "stdout.log"
+	logFile = logFolder + "stdout.log"
 )
 
 var (
@@ -85,9 +85,9 @@ type User struct {
 }
 
 type UserSimple struct {
-	ID           int64  `json:"id"`
-	AccountName  string `json:"account_name"`
-	NumSellItems int    `json:"num_sell_items"`
+  ID           int64  `json:"id" db:"id"`
+  AccountName  string `json:"account_name" db:"account_name"`
+  NumSellItems int    `json:"num_sell_items" db:"num_sell_items"`
 }
 
 type Item struct {
@@ -105,8 +105,8 @@ type Item struct {
 }
 
 type ItemSimple struct {
-	ID         int64       `json:"id" db:"id"`
-	SellerID   int64       `json:"seller_id" db:"seller_id"`
+  ID         int64       `json:"id" db:"id"`
+  SellerID   int64       `json:"seller_id" db:"seller_id"`
 	Seller     *UserSimple `json:"seller" db:"seller"`
 	Status     string      `json:"status" db:"status"`
 	Name       string      `json:"name" db:"name"`
@@ -540,12 +540,12 @@ func getNewItems(w http.ResponseWriter, r *http.Request) {
 	itemSimples := []ItemSimple{}
 	if itemID > 0 && createdAt > 0 {
 		// paging
-		query := `
+    query := `
 SELECT
 t1.id as id
 , t1.seller_id as seller_id
 , t2.id as "seller.id"
-, t2.accountName as "seller.account_name"
+, t2.account_name as "seller.account_name"
 , t2.num_sell_items as "seller.num_sell_items"
 , t1.status as status
 , t1.name as name
@@ -559,7 +559,7 @@ AND (t1.created_at < ?  OR (t1.created_at <= ? AND t1.id < ?))
 ORDER BY t1.created_at DESC, t1.id DESC LIMIT ?
     `
 		err := dbx.Select(&itemSimples,
-			query,
+      query,
 			ItemStatusOnSale,
 			ItemStatusSoldOut,
 			time.Unix(createdAt, 0),
@@ -574,12 +574,12 @@ ORDER BY t1.created_at DESC, t1.id DESC LIMIT ?
 		}
 	} else {
 		// 1st page
-		query := `
+    query := `
 SELECT
 t1.id as id
 , t1.seller_id as seller_id
 , t2.id as "seller.id"
-, t2.accountName as "seller.account_name"
+, t2.account_name as "seller.account_name"
 , t2.num_sell_items as "seller.num_sell_items"
 , t1.status as status
 , t1.name as name
@@ -611,7 +611,7 @@ ORDER BY t1.created_at DESC, t1.id DESC LIMIT ?
 			outputErrorMsg(w, http.StatusNotFound, "category not found")
 			return
 		}
-		item.Category = &category
+    item.Category = &category
 	}
 
 	hasNext := false
